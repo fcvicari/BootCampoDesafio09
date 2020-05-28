@@ -32,12 +32,12 @@ class CreateOrderService {
   ) {}
 
   public async execute({ customer_id, products }: IRequest): Promise<Order> {
-    const customer = this.customersRepository.findById(customer_id);
+    const customer = await this.customersRepository.findById(customer_id);
     if (!customer) {
       throw new AppError('Customer ID does not exists.');
     }
 
-    const idProducts = products.map(product => product.id);
+    const idProducts = products.map(product => ({ id: product.id }));
 
     const listProducts = await this.productsRepository.findAllById(idProducts);
     if (idProducts.length !== listProducts.length) {
@@ -46,11 +46,12 @@ class CreateOrderService {
 
     const productsOrder = products.map(product => ({
       product_id: product.id,
-      price: Number(listProducts.find(prod => prod.id === product.id).price),
+      price:
+        Number(listProducts.find(prod => prod.id === product.id)?.price) || 0,
       quantity: product.quantity,
     }));
 
-    const order = this.ordersRepository.create({
+    const order = await this.ordersRepository.create({
       customer,
       products: productsOrder,
     });
