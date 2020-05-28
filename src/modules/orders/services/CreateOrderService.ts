@@ -4,7 +4,7 @@ import AppError from '@shared/errors/AppError';
 
 import IProductsRepository from '@modules/products/repositories/IProductsRepository';
 import ICustomersRepository from '@modules/customers/repositories/ICustomersRepository';
-import Product from '@modules/products/infra/typeorm/entities/Product';
+import IUpdateProductsQuantityDTO from '@modules/products/dtos/IUpdateProductsQuantityDTO';
 import Order from '../infra/typeorm/entities/Order';
 import IOrdersRepository from '../repositories/IOrdersRepository';
 
@@ -40,16 +40,32 @@ class CreateOrderService {
     const idProducts = products.map(product => ({ id: product.id }));
 
     const listProducts = await this.productsRepository.findAllById(idProducts);
-    if (idProducts.length !== listProducts.length) {
-      throw new AppError('Products ID not exists.');
-    }
 
-    const productsOrder = products.map(product => ({
-      product_id: product.id,
-      price:
-        Number(listProducts.find(prod => prod.id === product.id)?.price) || 0,
-      quantity: product.quantity,
-    }));
+    const updateProductBalance: IUpdateProductsQuantityDTO[] = [];
+
+    const productsOrder = products.map(product => {
+      const productList = listProducts.find(prod => prod.id === product.id);
+      if (!productList) {
+        throw new AppError('Products ID not exists.');
+      }
+
+      if (productList.quantity < product.quantity) {
+        throw new AppError('some products do not have enough balance.');
+      }
+
+      updateProductBalance.push({
+        id: product.id,
+        quantity: productList.quantity - product.quantity,
+      });
+
+      return {
+        product_id: product.id,
+        price: productList.price,
+        quantity: product.quantity,
+      };
+    });
+
+    await this.productsRepository.updateQuantity(updateProductBalance);
 
     const order = await this.ordersRepository.create({
       customer,
